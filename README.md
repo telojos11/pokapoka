@@ -7,12 +7,14 @@ SoundOn's main application JS bundle (`index.24851df7.js`) contains **hardcoded 
 
 ### Leaked Credentials
 
-| Credential | Value | Verified Against |
-|---|---|---|
-| `client_key` | `awulj3e36brrh086` | `open-api.tiktok.com/oauth/access_token/` |
-| `client_secret` | `e63acb9afab646ee9340f16a2380b1ed` | `open-api.tiktok.com/oauth/access_token/` |
-| Source file | `https://sf-fe.anotecdn.com/obj/anote-fe/soundon/client-main/static/js/index.24851df7.js` | Module 69544 |
-| Evidence | TikTok API returns `error_code:10007` ("Authorization code expired") — **confirms credentials are valid** (invalid credentials would return `error_code:10002`) | Live test |
+SoundOn uses **two separate TikTok client_keys** — both found in client-side JS:
+
+| Credential | Value | Role | Source |
+|---|---|---|---|
+| `client_key` | `awcdygtcjh22v33k` | **Browser-side** — used in TikTok authorize URL | `kak.js` → module exported as `vt: () => "awcdygtcjh22v33k"` |
+| `client_key` | `awulj3e36brrh086` | **Server-side** — used for token exchange | `adek.js` module 69544 |
+| `client_secret` | `e63acb9afab646ee9340f16a2380b1ed` | **Server-side** — used for token exchange | `adek.js` module 69544 |
+| Evidence | TikTok token API returns `error_code:10007` ("Authorization code expired") → **both keys + secret are valid** | Live API test |
 
 ---
 
